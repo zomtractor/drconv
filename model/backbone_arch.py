@@ -3,23 +3,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.fft
 
+from model import MDFusion
+
 
 class FeatureBlock(nn.Module):
     def __init__(self, channels):
         super(FeatureBlock, self).__init__()
-
-
+        self.fusion1 = MDFusion(channels, channels)
+        self.fusion2 = MDFusion(channels, channels)
+        self.bn = nn.BatchNorm2d(channels)
+        self.relu = nn.ReLU(inplace=True)
     def forward(self, x):
-
-        return x
+        res = self.fusion1(x)
+        res = self.fusion2(res)
+        res = self.bn(res)
+        return self.relu(res)+x
 
 
 class DownSample(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(DownSample, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1)
+        self.down = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
 
     def forward(self, x):
+        x = self.down(x)
         return self.conv(x)
 
 
@@ -32,6 +40,7 @@ class UpSample(nn.Module):
     def forward(self, x):
         x = self.up(x)
         return self.conv(x)
+
 
 
 class WeightedConnect(nn.Module):
