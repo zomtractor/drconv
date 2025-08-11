@@ -3,23 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.fft
 
-from model import FAB, CBAM, MFFE
-
 
 class FeatureBlock(nn.Module):
     def __init__(self, channels):
         super(FeatureBlock, self).__init__()
-        self.fab1 = FAB(channels)
-        self.fab2 = FAB(channels)
-        self.cbam = CBAM(channels)
-        self.mffe = MFFE(channels)
+
 
     def forward(self, x):
-        res = self.fab1(x)
-        res = self.fab2(res)
-        res = self.cbam(res)
-        res = self.mffe(res)
-        return x + res
+
+        return x
 
 
 class DownSample(nn.Module):
