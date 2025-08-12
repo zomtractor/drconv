@@ -14,14 +14,14 @@ class DrConv(nn.Module):
         self.conv_v = nn.Conv2d(in_channel, out_channel, (kernel_size, 1), padding=padding, bias=False,stride=stride)
         self.conv_d1 = torch.nn.Parameter(
             torch.randn(out_channel,in_channel,1, kernel_size), requires_grad=True
-        )
+        ).cuda()
         self.conv_d2 = torch.nn.Parameter(
             torch.randn(out_channel,in_channel,1, kernel_size), requires_grad=True
-        )
+        ).cuda()
         nn.init.kaiming_uniform_(self.conv_d1)
         nn.init.kaiming_uniform_(self.conv_d2)
-        self.eyes = torch.eye(kernel_size,requires_grad=False)
-        self.reyes = torch.flip(self.eyes,[-1])
+        self.eyes = torch.eye(kernel_size,requires_grad=False).cuda()
+        self.reyes = torch.flip(self.eyes,[-1]).cuda()
 
     def forward(self, x):
         h = self.conv_h(x)

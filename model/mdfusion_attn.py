@@ -37,10 +37,10 @@ class MDFusion(nn.Module):
         fs3 = o3.view(b, 3, c, h, w).max(dim=1)[0] + o3.view(b, 3, c, h, w).mean(dim=1)
         fs4 = o4.view(b, 3, c, h, w).max(dim=1)[0] + o4.view(b, 3, c, h, w).mean(dim=1)
 
-        fs1 = self.activation(fs1/2)
-        fs2 = self.activation(fs2/2)
-        fs3 = self.activation(fs3/2)
-        fs4 = self.activation(fs4/2)
+        fs1 = self.activation(self.bn(fs1/2))
+        fs2 = self.activation(self.bn(fs2/2))
+        fs3 = self.activation(self.bn(fs3/2))
+        fs4 = self.activation(self.bn(fs4/2))
 
         fs = torch.concat([fs1,fs2,fs3,fs4], dim=1)
         out = self.ln(fs)

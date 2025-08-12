@@ -1,5 +1,4 @@
 from model import DrConv
-from swin import SwinBlock
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,7 +12,8 @@ class MDFusion(nn.Module):
         self.c7 = DrConv(in_channels, out_channels, kernel_size=7)
         self.activation = nn.GELU()
         self.bn = nn.BatchNorm2d(in_channels)
-        self.se = SEBlock(in_channels)
+        self.se = SEBlock(in_channels*4)
+        self.reduce = nn.Conv2d(in_channels*4, in_channels, kernel_size=1, bias=False)
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -38,7 +38,7 @@ class MDFusion(nn.Module):
 
         fs = torch.concat([fs1, fs2, fs3, fs4], dim=1)
         out = self.se(fs)
-        return x + out
+        return x + self.reduce(out)
 
 
 class SEBlock(nn.Module):
