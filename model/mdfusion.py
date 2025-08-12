@@ -17,7 +17,7 @@ class MDFusion(nn.Module):
 
     def forward(self, x):
         b, c, h, w = x.shape
-
+    #   --   |     /   \
         o11, o21, o31, o41 = self.c3(x)
         o12, o22, o32, o42 = self.c5(x)
         o13, o23, o33, o43 = self.c7(x)

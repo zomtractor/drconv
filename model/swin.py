@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
+from model import LayerNorm
+
 
 class WindowAttention(nn.Module):
     def __init__(self, dim, window_size, num_heads):
@@ -44,10 +46,10 @@ class SwinBlock(nn.Module):
         self.shift_size = shift_size
         self.num_heads = num_heads
 
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = LayerNorm(dim)
         self.attn = WindowAttention(dim, window_size=window_size, num_heads=num_heads)
 
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = LayerNorm(dim)
         self.mlp = nn.Sequential(
             nn.Linear(dim, int(dim * mlp_ratio)),
             nn.GELU(),

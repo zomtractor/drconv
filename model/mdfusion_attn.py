@@ -1,7 +1,5 @@
-from torch.nn import LayerNorm
 
-from model import DrConv
-from swin import SwinBlock
+from model import DrConv, SwinBlock, LayerNorm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,7 +12,8 @@ class MDFusion(nn.Module):
         self.c5 = DrConv(in_channels, out_channels, kernel_size=5)
         self.c7 = DrConv(in_channels, out_channels, kernel_size=7)
         self.activation = nn.GELU()
-        self.ln = LayerNorm(in_channels * 4)
+        self.ln1 = LayerNorm(in_channels)
+        self.ln2 = LayerNorm(4*in_channels)
         self.attn = nn.Sequential(
             SwinBlock(dim=4 * in_channels, input_resolution=None, num_heads=4, shift_size=0),
             SwinBlock(dim=4 * in_channels, input_resolution=None, num_heads=4, shift_size=7),
@@ -37,13 +36,13 @@ class MDFusion(nn.Module):
         fs3 = o3.view(b, 3, c, h, w).max(dim=1)[0] + o3.view(b, 3, c, h, w).mean(dim=1)
         fs4 = o4.view(b, 3, c, h, w).max(dim=1)[0] + o4.view(b, 3, c, h, w).mean(dim=1)
 
-        fs1 = self.activation(self.bn(fs1/2))
-        fs2 = self.activation(self.bn(fs2/2))
-        fs3 = self.activation(self.bn(fs3/2))
-        fs4 = self.activation(self.bn(fs4/2))
+        fs1 = self.activation(self.ln1(fs1/2))
+        fs2 = self.activation(self.ln1(fs2/2))
+        fs3 = self.activation(self.ln1(fs3/2))
+        fs4 = self.activation(self.ln1(fs4/2))
 
         fs = torch.concat([fs1,fs2,fs3,fs4], dim=1)
-        out = self.ln(fs)
+        out = self.ln2(fs)
         out = self.attn(out)
         return x + out
 
