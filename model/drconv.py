@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,14 +20,15 @@ class DrConv(nn.Module):
         self.conv_d2 = torch.nn.Parameter(
             torch.randn(out_channel,in_channel,1, kernel_size), requires_grad=True
         ).cuda()
-        nn.init.kaiming_uniform_(self.conv_d1)
-        nn.init.kaiming_uniform_(self.conv_d2)
+        nn.init.kaiming_uniform_(self.conv_d1, a=math.sqrt(5))
+        nn.init.kaiming_uniform_(self.conv_d2 ,a=math.sqrt(5))
         self.eyes = torch.eye(kernel_size,requires_grad=False).cuda()
         self.reyes = torch.flip(self.eyes,[-1]).cuda()
 
     def forward(self, x):
         h = self.conv_h(x)
         v = self.conv_v(x)
+
         d1 = F.conv2d(x,self.conv_d1*self.eyes,stride=self.stride,padding=self.padding)
         d2 = F.conv2d(x,self.conv_d2*self.reyes,stride=self.stride,padding=self.padding)
         return h, v, d1, d2

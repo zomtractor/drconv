@@ -5,7 +5,7 @@ from skimage import img_as_ubyte
 from focal_frequency_loss import FocalFrequencyLoss as FFL
 import yaml
 
-from model import UBlock, CombinedLoss
+from model import UBlock, CombinedLoss,ConvIR
 from utils import network_parameters
 import torch.optim as optim
 import time
@@ -23,6 +23,7 @@ import lpips
 import warnings
 from lightning.fabric import Fabric
 
+import torch.nn.functional as F
 
 def init_torch_config(config):
     warnings.filterwarnings("ignore")
@@ -73,7 +74,9 @@ def load_model(config, fabric):
     mode = config['MODEL']['MODE']
     model_dir = os.path.join(Train['SAVE_DIR'], mode, 'models')
     utils.mkdir(model_dir)
-    model_restored = UBlock(base_channels=OPT['CHANNELS'])
+    # model_restored = UBlock(base_channels=OPT['CHANNELS'])
+    # model_restored = Uformer(embed_dim=10)
+    model_restored = ConvIR(version='small', data='ITS',base_channel=OPT['CHANNELS'])
     p_number = network_parameters(model_restored)
     ## Optimizer
     start_epoch = 1
@@ -173,7 +176,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
         input_padded = torch.nn.functional.pad(input_,(w_pad_left, w_pad_right, h_pad_top, h_pad_bottom))
 
         with torch.no_grad():
-            restored = model_restored(input_padded)
+            restored = model_restored(input_padded)[2]
 
             # 移除padding
             if h_pad_top + h_pad_bottom > 0:
@@ -355,16 +358,19 @@ if __name__ == '__main__':
             input_ = data[1].cuda()
             restored = model_restored(input_)
 
-            loss, items = combined_loss(restored, target)
+            loss, items = combined_loss(restored[0], F.interpolate(target, scale_factor=0.25, mode='bilinear', align_corners=False))
+            loss2, items2 = combined_loss(restored[1], F.interpolate(target, scale_factor=0.5, mode='bilinear', align_corners=False))
+            loss3, items3 = combined_loss(restored[2], target)
+            loss = loss + loss2 + loss3
             # Back propagation
             # loss.backward()
             fabric.backward(loss)
             optimizer.step()
             epoch_loss += loss.item()
-            epoch_ssim_loss += items['ssim']
-            epoch_c1_loss += items['charbonnier']
-            epoch_vgg_loss += items['vgg']
-            epoch_freq_loss += items['freq']
+            epoch_ssim_loss += items['ssim']+ items2['ssim'] + items3['ssim']
+            epoch_c1_loss += items['charbonnier']+ items2['charbonnier'] + items3['charbonnier']
+            epoch_vgg_loss += items['vgg']+ items2['vgg'] + items3['vgg']
+            epoch_freq_loss += items['freq']+ items2['freq'] + items3['freq']
             if i % 500 == 499:
                 print(f'echo {epoch}, iter {i + 1} finished.===================================================')
         ## Evaluation (Validation)
