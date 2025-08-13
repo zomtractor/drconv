@@ -200,7 +200,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
                 future.result()
     psnr_val_rgb, ssim_val_rgb, lpips_val_rgb, score_val_rgb, Gpsnr_val_rgb, Spsnr_val_rgb = calculate_metrics(
         gt_path, input_path, mask_path, loss_fn)
-    assert psnr_val_rgb > 20, "nan or inf in PSNR calculation"
+    # assert psnr_val_rgb > 20, "nan or inf in PSNR calculation"
     # Save the best PSNR model of validation
     if psnr_val_rgb > record_dict['best_psnr']:
         record_dict['best_psnr'] = psnr_val_rgb

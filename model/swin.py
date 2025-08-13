@@ -51,9 +51,9 @@ class SwinBlock(nn.Module):
 
         self.norm2 = LayerNorm(dim)
         self.mlp = nn.Sequential(
-            nn.Linear(dim, int(dim * mlp_ratio)),
+            nn.Conv2d(dim, int(dim * mlp_ratio),kernel_size=3, padding=1),
             nn.GELU(),
-            nn.Linear(int(dim * mlp_ratio), dim)
+            nn.Conv2d(int(dim * mlp_ratio), dim,kernel_size=3, padding=1)
         )
 
     def forward(self, x):
@@ -61,12 +61,13 @@ class SwinBlock(nn.Module):
         x: (B, C, H, W)
         """
         B, C, H, W = x.shape
-        x = x.permute(0, 2, 3, 1).contiguous()  # (B, H, W, C)
+        # x = x.permute(0, 2, 3, 1).contiguous()  # (B, H, W, C)
         shortcut = x
-        x = self.norm1(x).view(B, H, W, C)
+        # x = self.norm1(x).view(B, H, W, C)
+        x = self.norm1(x)
 
         if self.shift_size > 0:
-            shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
+            shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(2, 3))
         else:
             shifted_x = x
 
@@ -76,25 +77,25 @@ class SwinBlock(nn.Module):
         Wp = int((W + window_size - 1) // window_size) * window_size
         pad_h = Hp - H
         pad_w = Wp - W
-        shifted_x = F.pad(shifted_x, (0, 0, 0, pad_w, 0, pad_h))
+        shifted_x = F.pad(shifted_x, (0,pad_w,0, pad_h))
 
-        x_windows = rearrange(shifted_x, 'b (h w1) (w w2) c -> (b h w) (w1 w2) c',
+        x_windows = rearrange(shifted_x, 'b c (h w1) (w w2) -> (b h w) (w1 w2) c',
                               w1=window_size, w2=window_size)
 
         attn_windows = self.attn(x_windows)  # (num_windows*B, window_size*window_size, C)
 
-        x = rearrange(attn_windows, '(b h w) (w1 w2) c -> b (h w1) (w w2) c',
+        x = rearrange(attn_windows, '(b h w) (w1 w2) c -> b c (h w1) (w w2)',
                       h=Hp // window_size, w=Wp // window_size,
                       w1=window_size, w2=window_size)
 
         if self.shift_size > 0:
-            x = torch.roll(x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
+            x = torch.roll(x, shifts=(self.shift_size, self.shift_size), dims=(2, 3))
 
         if pad_h > 0 or pad_w > 0:
-            x = x[:, :H, :W, :]
+            x = x[:,:, :H, :W]
 
         x = shortcut + x
         x = x + self.mlp(self.norm2(x))  # MLP + skip
 
-        x = x.permute(0, 3, 1, 2).contiguous()  # (B, C, H, W)
+        # x = x.permute(0, 3, 1, 2).contiguous()  # (B, C, H, W)
         return x

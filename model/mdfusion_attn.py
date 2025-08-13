@@ -42,14 +42,14 @@ class MDFusion(nn.Module):
         fs4 = self.activation(self.ln1(fs4/2))
 
         fs = torch.concat([fs1,fs2,fs3,fs4], dim=1)
-        out = self.ln2(fs)
-        out = self.attn(out)
+        # out = self.ln2(fs)
+        out = self.attn(fs)
         return x + out
 
 if __name__ == '__main__':
     # 示例使用
-    x = torch.randn(4, 64, 256, 256)  # batch_size=4, channels=64, height=32, width=32
-    mdfusion = MDFusion(64, 64)
+    x = torch.randn(4, 10, 256, 256).cuda()  # batch_size=4, channels=64, height=32, width=32
+    mdfusion = MDFusion(64, 64).cuda()
     out = mdfusion(x)
     print("MDFusion output shape:", out.shape)
 
