@@ -7,6 +7,7 @@ from focal_frequency_loss import FocalFrequencyLoss as FFL
 import yaml
 import torch.distributed as dist
 
+import model
 from model import UBlock, CombinedLoss
 from utils import network_parameters
 import torch.optim as optim
@@ -46,7 +47,7 @@ def get_data_loaders(config):
     utils.mkdir(Train['VAL']['REAL_SAVE'])
     utils.mkdir(Train['VAL']['SYN_SAVE'])
 
-    train_dataset = get_training_data(Train['TRAIN_DIR'], {'patch_size': Train['TRAIN_PS']})
+    train_dataset = get_training_data(Train['TRAIN_DIR'], {'patch_size': Train['TRAIN_PS']},OPT['LENGTH'])
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = DataLoader(dataset=train_dataset, batch_size=OPT['BATCH'],
                             sampler=train_sampler)
@@ -68,7 +69,9 @@ def load_model(config):
     mode = config['MODEL']['MODE']
     model_dir = os.path.join(Train['SAVE_DIR'], mode, 'models')
     utils.mkdir(model_dir)
-    model_restored = UBlock(base_channels=OPT['CHANNELS']).cuda()
+    model_class = getattr(model, config['MODEL']['ARCH'])
+    model_args = config['MODEL']['ARGS']
+    model_restored = model_class(**model_args).cuda()
     model_restored = torch.nn.parallel.DistributedDataParallel(model_restored, device_ids=[args.local_rank])
 
     p_number = network_parameters(model_restored)

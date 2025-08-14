@@ -5,6 +5,7 @@ from skimage import img_as_ubyte
 from focal_frequency_loss import FocalFrequencyLoss as FFL
 import yaml
 
+import model
 from model import UBlock, CombinedLoss,ConvIR
 from utils import network_parameters
 import torch.optim as optim
@@ -51,7 +52,7 @@ def get_data_loaders(config, fabric):
     utils.mkdir(Train['VAL']['REAL_SAVE'])
     utils.mkdir(Train['VAL']['SYN_SAVE'])
 
-    train_dataset = get_training_data(Train['TRAIN_DIR'], {'patch_size': Train['TRAIN_PS']})
+    train_dataset = get_training_data(Train['TRAIN_DIR'], {'patch_size': Train['TRAIN_PS']},OPT['LENGTH'])
     train_loader = DataLoader(dataset=train_dataset, batch_size=OPT['BATCH'],
                               shuffle=True, num_workers=OPT['BATCH'], drop_last=True)
     real_val_dataset = get_validation_data(Train['VAL']['REAL_DIR'], {'patch_size': Train['VAL_PS']})
@@ -76,7 +77,9 @@ def load_model(config, fabric):
     utils.mkdir(model_dir)
     # model_restored = UBlock(base_channels=OPT['CHANNELS'])
     # model_restored = Uformer(embed_dim=10)
-    model_restored = ConvIR(version='small', data='ITS',base_channel=OPT['CHANNELS'])
+    model_class = getattr(model, config['MODEL']['ARCH'])
+    model_args = config['MODEL']['ARGS']
+    model_restored = model_class(**model_args)
     p_number = network_parameters(model_restored)
     ## Optimizer
     start_epoch = 1
@@ -159,11 +162,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
 
     model_restored.eval()
     print(f'==> Validation on {name} dataset=====================================================')
-    # psnr_val_rgb = []
-    # ssim_val_rgb = []
-    cumulative_psnr = 0
-    cumulative_ssim = 0
-    cumulative_lpips = 0
+
     for ii, data_val in enumerate(val_loader, 0):
         target = data_val[0].cuda()
         input_ = data_val[1].cuda()

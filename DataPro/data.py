@@ -3,9 +3,9 @@ import os
 from DataPro import LocalDataLoaderTrain, DataLoaderVal, DataLoaderTest, DataLoaderTrain
 
 
-def get_training_data(rgb_dir, img_options):
+def get_training_data(rgb_dir, img_options,length):
     assert os.path.exists(rgb_dir)
-    return LocalDataLoaderTrain(rgb_dir, img_options,length=64)
+    return LocalDataLoaderTrain(rgb_dir, img_options,length=length)
     # return DataLoaderTrain(rgb_dir, img_options,length=10000)
 
 
