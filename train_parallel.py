@@ -24,6 +24,7 @@ from utils.utils import ASLloss, ColorLoss, Blur, L1_Charbonnier_loss, img_pad, 
 from utils.mask_utils import calculate_metrics
 import lpips
 import warnings
+import torch.nn.functional as F
 
 
 def init_torch_config():
@@ -364,7 +365,10 @@ if __name__ == '__main__':
             restored = model_restored(input_)
 
 
-            loss, items = combined_loss(restored, target)
+            loss, items = combined_loss(restored[0], F.interpolate(target, scale_factor=0.25, mode='bilinear', align_corners=False))
+            loss2, items2 = combined_loss(restored[1], F.interpolate(target, scale_factor=0.5, mode='bilinear', align_corners=False))
+            loss3, items3 = combined_loss(restored[2], target)
+            loss = loss + loss2 + loss3
 
             loss.backward()
             optimizer.step()
