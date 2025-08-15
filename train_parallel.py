@@ -176,7 +176,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
         input_padded = torch.nn.functional.pad(input_,(w_pad_left, w_pad_right, h_pad_top, h_pad_bottom))
 
         with torch.no_grad():
-            restored = model_restored(input_padded)
+            restored = model_restored(input_padded)[2]
 
             # 移除padding
             if h_pad_top + h_pad_bottom > 0:
