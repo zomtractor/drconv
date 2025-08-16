@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from model import MDFusion
-
 
 class BasicConv(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size, stride, bias=True, norm=False, relu=True, transpose=False):
@@ -35,8 +33,7 @@ class ResBlock(nn.Module):
         super(ResBlock, self).__init__()
         self.main = nn.Sequential(
             BasicConv(in_channel, out_channel, kernel_size=3, stride=1, relu=True),
-            # DeepPoolLayer(in_channel, out_channel, data) if filter else nn.Identity(),
-            MDFusion(in_channel, out_channel) if filter else nn.Identity(),
+            MSM(in_channel, out_channel, data) if filter else nn.Identity(),
             BasicConv(out_channel, out_channel, kernel_size=3, stride=1, relu=False)
         )
 
@@ -44,9 +41,9 @@ class ResBlock(nn.Module):
         return self.main(x) + x
 
 
-class DeepPoolLayer(nn.Module):
+class MSM(nn.Module):
     def __init__(self, k, k_out, data):
-        super(DeepPoolLayer, self).__init__()
+        super(MSM, self).__init__()
         self.pools_sizes = [8, 4, 2]
 
         if data == 'ITS' or 'Densehaze' or 'Haze4k' or 'Ihaze' or 'Nhhaze' or 'NHR' or 'Ohaze':
@@ -82,9 +79,9 @@ class DeepPoolLayer(nn.Module):
         return resl
 
 
-class dynamic_filter(nn.Module):
+class DSA(nn.Module):
     def __init__(self, inchannels, kernel_size=3, dilation=1, stride=1, group=8):
-        super(dynamic_filter, self).__init__()
+        super(DSA, self).__init__()
         self.stride = stride
         self.kernel_size = kernel_size
         self.group = group
@@ -132,7 +129,7 @@ class dynamic_filter(nn.Module):
         return out_low + out_high
 
 
-class cubic_attention(nn.Module):
+class DRA(nn.Module):
     def __init__(self, dim, group, dilation, kernel) -> None:
         super().__init__()
 
@@ -191,8 +188,8 @@ class MultiShapeKernel(nn.Module):
     def __init__(self, dim, kernel_size=3, dilation=1, group=8):
         super().__init__()
 
-        self.square_att = dynamic_filter(inchannels=dim, dilation=dilation, group=group, kernel_size=kernel_size)
-        self.strip_att = cubic_attention(dim, group=group, dilation=dilation, kernel=kernel_size)
+        self.square_att = DSA(inchannels=dim, dilation=dilation, group=group, kernel_size=kernel_size)
+        self.strip_att = DRA(dim, group=group, dilation=dilation, kernel=kernel_size)
 
     def forward(self, x):
         x1 = self.strip_att(x)

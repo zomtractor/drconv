@@ -29,9 +29,9 @@ class DBlock(nn.Module):
         return self.layers(x)
 
 
-class SCM(nn.Module):
+class ConvS(nn.Module):
     def __init__(self, out_plane):
-        super(SCM, self).__init__()
+        super(ConvS, self).__init__()
         self.main = nn.Sequential(
             BasicConv(3, out_plane // 4, kernel_size=3, stride=1, relu=True),
             BasicConv(out_plane // 4, out_plane // 2, kernel_size=1, stride=1, relu=True),
@@ -55,7 +55,7 @@ class FAM(nn.Module):
 
 
 class ConvIR(nn.Module):
-    def __init__(self, version, data, base_channel=32):
+    def __init__(self, version, data):
         super(ConvIR, self).__init__()
 
         if version == 'small':
@@ -64,6 +64,8 @@ class ConvIR(nn.Module):
             num_res = 8
         elif version == 'large':
             num_res = 16
+
+        base_channel = 32
 
         self.Encoder = nn.ModuleList([
             EBlock(base_channel, num_res, data),
@@ -99,15 +101,15 @@ class ConvIR(nn.Module):
         )
 
         self.FAM1 = FAM(base_channel * 4)
-        self.SCM1 = SCM(base_channel * 4)
+        self.ConvS1 = ConvS(base_channel * 4)
         self.FAM2 = FAM(base_channel * 2)
-        self.SCM2 = SCM(base_channel * 2)
+        self.ConvS2 = ConvS(base_channel * 2)
 
     def forward(self, x):
         x_2 = F.interpolate(x, scale_factor=0.5)
         x_4 = F.interpolate(x_2, scale_factor=0.5)
-        z2 = self.SCM2(x_2)
-        z4 = self.SCM1(x_4)
+        z2 = self.ConvS2(x_2)
+        z4 = self.ConvS1(x_4)
 
         outputs = list()
         # 256

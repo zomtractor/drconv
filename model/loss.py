@@ -18,6 +18,10 @@ class L1CharbonnierLoss(nn.Module):
 
 
 # ========== Focal Frequency Loss ==========
+class FocalFrequencyLoss(FFL):
+    def __init__(self, loss_weight=1.0, alpha=1.0):
+        super(FocalFrequencyLoss, self).__init__(loss_weight=loss_weight, alpha=alpha)
+
 
 # ========== SSIM Loss ==========
 class SSIMLoss(nn.Module):
@@ -26,6 +30,37 @@ class SSIMLoss(nn.Module):
 
     def forward(self, x, y):
         return 1 - ssim(x, y, data_range=1.0, size_average=True)
+
+# ========== Color Consistency Loss ==========
+class ColorConsistencyLoss(nn.Module):
+    def __init__(self, alpha=0.1):
+        super(ColorConsistencyLoss, self).__init__()
+        self.alpha = alpha
+
+    def forward(self, pred, target):
+        # 计算预测图像和目标图像的颜色直方图
+        pred_hist = torch.histc(pred, bins=256, min=0, max=1)
+        target_hist = torch.histc(target, bins=256, min=0, max=1)
+
+        # 计算颜色直方图之间的L1距离
+        hist_diff = torch.abs(pred_hist - target_hist)
+
+        # 计算颜色一致性损失
+        loss = self.alpha * torch.sum(hist_diff)
+
+        return loss
+
+class LPIPSLoss(nn.Module):
+    def __init__(self,net='vgg'):
+        super(LPIPSLoss, self).__init__()
+        self.vgg = lpips.LPIPS(net=net)  # Perceptual VGG Loss
+        self.vgg.eval()  # VGG loss 不更新
+        for param in self.vgg.parameters():
+            param.requires_grad = False
+
+    def forward(self, pred, target):
+        return self.vgg(pred * 2 - 1, target * 2 - 1).mean()
+
 
 
 # ========== 综合损失 ==========
@@ -69,3 +104,14 @@ class CombinedLoss(nn.Module):
             "freq": l_freq.item(),
             "vgg": l_vgg.item()
         }
+
+if __name__ == '__main__':
+    # test for ColorConsistencyLoss
+    target = torch.randn((1, 3, 256, 256))
+    # add noise to the target
+    noise = torch.randn((1, 3, 256, 256)) * 0.01
+    pred = target + noise
+
+    color_loss = ColorConsistencyLoss()
+    loss = color_loss(pred, target)
+    print(f"Color Consistency Loss: {loss.item()}")

@@ -24,12 +24,21 @@ TRAINING:
   TRAIN_PS: 256 # origin: 256
   VAL_PS: 512
   TRAIN_DIR: './dataset/flare7k_local'       # path to training data
-  LOSS_WEIGHTS: [
-    1.0,  # Char loss
-    1.0, # SSIM loss
-    1.5, # Freq loss
-    0.02, # VGG loss
-  ]
+  LOSS:
+    L1CharbonnierLoss:
+      eps: 1e-6
+      loss_weight: 1.0
+    FocalFrequencyLoss:
+      alpha: 1.0
+      loss_weight: 1.0
+    SSIMLoss:
+      loss_weight: 1.0
+    ColorConsistencyLoss:
+      loss_weight: 1.0
+    LPIPSLoss:
+      net: 'vgg'
+      loss_weight: 1.0
+
   VAL:
     REAL_DIR: './dataset/Flare7Kpp/test_data/real'
     REAL_SAVE: './val_result_real'

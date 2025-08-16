@@ -71,6 +71,7 @@ class UBlock(nn.Module):
         self.db1 = FeatureBlock(base_channels)
 
         self.tail = nn.Conv2d(base_channels, in_channels, kernel_size=3, padding=1)
+        self.betas = nn.Parameter(torch.ones(5), requires_grad=True)  # Learnable parameters for each upsample block
 
     def forward(self, x):
         out = self.head(x)
@@ -83,16 +84,16 @@ class UBlock(nn.Module):
         v4 = self.eb4(out)
         out = self.down4(v4)
         out = self.bottleneck(out)
-        out = v4+self.up4(out)
+        out = v4+self.betas[0]*self.up4(out)
         out = self.db4(out)
-        out = v3+self.up3(out)
+        out = v3+self.betas[1]*self.up3(out)
         out = self.db3(out)
-        out = v2+self.up2(out)
+        out = v2+self.betas[2]*self.up2(out)
         out = self.db2(out)
-        out = v1+self.up1(out)
+        out = v1+self.betas[3]*self.up1(out)
         out = self.db1(out)
         out = self.tail(out)
-        return x+out
+        return x+self.betas[4]*out
 
 
 if __name__ == '__main__':
