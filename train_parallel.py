@@ -343,7 +343,9 @@ if __name__ == '__main__':
     Train = config['TRAINING']
     OPT = config['TRAINOPTIM']
     model_dir = os.path.join(Train['SAVE_DIR'], config['MODEL']['MODE'], 'models')
-    combined_loss = CombinedLoss(weights=Train['LOSS_WEIGHTS']).cuda()
+    combined_loss1 = CombinedLoss(Train['LOSS']).cuda()
+    combined_loss2 = CombinedLoss(Train['LOSS']).cuda()
+    combined_loss3 = CombinedLoss(Train['LOSS']).cuda()
     loss_fn_alex = lpips.LPIPS(net='alex').cuda()
     for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         epoch_start_time = time.time()
@@ -364,19 +366,13 @@ if __name__ == '__main__':
             input_ = data[1].cuda()
             restored = model_restored(input_)
 
-
-            loss, items = combined_loss(restored[0], F.interpolate(target, scale_factor=0.25, mode='bilinear', align_corners=False))
-            loss2, items2 = combined_loss(restored[1], F.interpolate(target, scale_factor=0.5, mode='bilinear', align_corners=False))
-            loss3, items3 = combined_loss(restored[2], target)
+            loss3 = combined_loss3(restored[0], F.interpolate(target, scale_factor=0.25, mode='bilinear', align_corners=False))
+            loss2 = combined_loss2(restored[1], F.interpolate(target, scale_factor=0.5, mode='bilinear', align_corners=False))
+            loss = combined_loss1(restored[2], target)
             loss = loss + loss2 + loss3
 
             loss.backward()
             optimizer.step()
-            epoch_loss += loss.item()
-            epoch_ssim_loss += items['ssim']
-            epoch_c1_loss += items['charbonnier']
-            epoch_vgg_loss += items['vgg']
-            epoch_freq_loss += items['freq']
             if i % 500 == 499:
                 print(f'echo {epoch}, iter {i + 1} finished.===================================================')
         ## Evaluation (Validation)
@@ -384,15 +380,18 @@ if __name__ == '__main__':
         if args.local_rank == 0:
 
             if epoch % Train['VAL_AFTER_EVERY'] == 0:
-                validate(config,'REAL',model_restored,  real_val_loader, best_real_dict,loss_fn_alex)
-                validate(config,'SYN',model_restored,  syn_val_loader, best_syn_dict,loss_fn_alex)
-
+                validate(config, 'REAL', model_restored, real_val_loader, best_real_dict, loss_fn_alex)
+                validate(config, 'SYN', model_restored, syn_val_loader, best_syn_dict, loss_fn_alex)
             print("------------------------------------------------------------------")
             print(
-                "Epoch: {}\tTime: {:.4f}\tLoss: {:.4f}\tSSIMLoss: {:.4f}\tChar1Loss: {:.4f}\tVGGLoss: {:.4f}\tFreqLoss: {:.4f}\tLearningRate {:.8f}".format(
-                    epoch, time.time() - epoch_start_time,
-                    epoch_loss, epoch_ssim_loss, epoch_c1_loss, epoch_vgg_loss, epoch_freq_loss, scheduler.get_lr()[0]))
-            print("------------------------------------------------------------------")
+                "Epoch: {}\tTime: {:.4f}\tLearningRate {:.8f}".format(epoch, time.time() - epoch_start_time,
+                                                                      scheduler.get_lr()[0]))
+            combined_loss1.merge(combined_loss2)
+            combined_loss1.merge(combined_loss3)
+            combined_loss1.print_cumulative_loss()
+            combined_loss1.clear_cumulative_loss()
+            combined_loss2.clear_cumulative_loss()
+            combined_loss3.clear_cumulative_loss()
 
             # Save the last model
             torch.save({'epoch': epoch,

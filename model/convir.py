@@ -55,7 +55,7 @@ class FAM(nn.Module):
 
 
 class ConvIR(nn.Module):
-    def __init__(self, version, data):
+    def __init__(self, version, data,base_channel = 32):
         super(ConvIR, self).__init__()
 
         if version == 'small':
@@ -65,7 +65,7 @@ class ConvIR(nn.Module):
         elif version == 'large':
             num_res = 16
 
-        base_channel = 32
+
 
         self.Encoder = nn.ModuleList([
             EBlock(base_channel, num_res, data),

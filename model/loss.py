@@ -1,10 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import yaml
 from pytorch_msssim import ssim
 import lpips
 import numpy as np
 from focal_frequency_loss import FocalFrequencyLoss as FFL
+
+import model
 
 
 # ========== L1 Charbonnier Loss ==========
@@ -65,53 +68,67 @@ class LPIPSLoss(nn.Module):
 
 # ========== 综合损失 ==========
 class CombinedLoss(nn.Module):
-    def __init__(self, weights=[1.0, 1.0, 1.0, 0.01]):
-        """
-        weights: [w_char, w_ssim, w_vgg, w_freq]
-        """
+    def __init__(self, loss_dict):
         super(CombinedLoss, self).__init__()
-        assert len(weights) == 4, "Must provide 4 weights"
-        self.weights = weights
+        self.losses = nn.ModuleDict()
+        self.weights = {}
+        self.cumulative_loss = {}
+        self.cumulative_loss['total'] = 0.0
 
-        self.l1_char = L1CharbonnierLoss()
-        self.ssim = SSIMLoss()
-        self.vgg = lpips.LPIPS(net='vgg')  # Perceptual VGG Loss
-        self.vgg.eval()  # VGG loss 不更新
-        for param in self.vgg.parameters():
-            param.requires_grad = False
+        for loss_name, loss_cfg in loss_dict.items():
+            # Extract weight (required) and remove it from config
+            loss_cfg = loss_cfg.copy()
+            weight = loss_cfg.pop("loss_weight")
+            self.weights[loss_name] = weight
+            self.cumulative_loss[loss_name] = 0.0
+            # Dynamically get the loss class from torch.nn
+            loss_class = getattr(model, loss_name, None)
+            if loss_class is None:
+                raise ValueError(f"Loss class '{loss_name}' not found in torch.nn")
 
-        self.freq = FFL(loss_weight=1.0, alpha=1.0)
+            # Initialize the loss with remaining parameters
+            self.losses[loss_name] = loss_class(**loss_cfg)
+            print(f'Initialized {loss_name} with weight {weight}')
 
-    def forward(self, pred, target):
-        pred_norm = pred.clamp(0, 1)
-        target_norm = target.clamp(0, 1)
+    def forward(self, input, target):
+        total_loss = 0.0
+        for name, loss_fn in self.losses.items():
+            loss_val = loss_fn(input, target)
+            total_loss += self.weights[name] * loss_val
+            self.cumulative_loss[name] += loss_val.item()
+        self.cumulative_loss['total'] += total_loss
+        return total_loss
 
-        l_char = self.l1_char(pred_norm, target_norm)
-        l_ssim = self.ssim(pred_norm, target_norm)
-        l_freq = self.freq(pred_norm, target_norm)
-        l_vgg = self.vgg(pred_norm * 2 - 1, target_norm * 2 - 1).mean()
+    def clear_cumulative_loss(self):
+        """Clear cumulative loss values."""
+        for name in self.cumulative_loss.keys():
+            self.cumulative_loss[name] = 0.0
 
-        total_loss = (
-                self.weights[0] * l_char +
-                self.weights[1] * l_ssim +
-                self.weights[2] * l_freq +
-                self.weights[3] * l_vgg
-        )
+    def print_cumulative_loss(self):
+        """Print cumulative loss values."""
+        for name, value in self.cumulative_loss.items():
+            print(f"{name}: {value:.4f}", end=',')
+        print()
 
-        return total_loss, {
-            "charbonnier": l_char.item(),
-            "ssim": l_ssim.item(),
-            "freq": l_freq.item(),
-            "vgg": l_vgg.item()
-        }
+    def merge(self, other):
+        """Merge another CombinedLoss instance into this one."""
+        if not isinstance(other, CombinedLoss):
+            raise ValueError("Can only merge with another CombinedLoss instance.")
+        for name in self.cumulative_loss.keys():
+            self.cumulative_loss[name] += other.cumulative_loss[name]
+        return self
+
 
 if __name__ == '__main__':
-    # test for ColorConsistencyLoss
-    target = torch.randn((1, 3, 256, 256))
-    # add noise to the target
-    noise = torch.randn((1, 3, 256, 256)) * 0.01
-    pred = target + noise
+    with open('../config.yaml', 'r') as config:
+        opt = yaml.safe_load(config)
+    loss_dict = opt['TRAINING']['LOSS']
+    combined_loss = CombinedLoss(loss_dict)
+    gt = torch.randn(1, 3, 256, 256)
+    noise = torch.randn(1, 3, 256, 256)*0.001
+    prediction = gt + noise
+    total_loss, loss_dict = combined_loss(prediction, gt)
+    print(f'Total Loss: {total_loss.item()}')
+    print('Loss Details:', loss_dict)
 
-    color_loss = ColorConsistencyLoss()
-    loss = color_loss(pred, target)
-    print(f"Color Consistency Loss: {loss.item()}")
+
