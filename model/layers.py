@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from model import MDFusion
+
 
 class BasicConv(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size, stride, bias=True, norm=False, relu=True, transpose=False):
@@ -33,7 +35,8 @@ class ResBlock(nn.Module):
         super(ResBlock, self).__init__()
         self.main = nn.Sequential(
             BasicConv(in_channel, out_channel, kernel_size=3, stride=1, relu=True),
-            MSM(in_channel, out_channel, data) if filter else nn.Identity(),
+            # MSM(in_channel, out_channel, data) if filter else nn.Identity(),
+            MDFusion(in_channel, out_channel) if filter else nn.Identity(),
             BasicConv(out_channel, out_channel, kernel_size=3, stride=1, relu=False)
         )
 
