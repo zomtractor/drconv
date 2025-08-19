@@ -59,22 +59,20 @@ class Flare_Image_Loader(data.Dataset):
         self.ext = ['png', 'jpeg', 'jpg', 'bmp', 'tif']
         self.data_list = []
         [self.data_list.extend(glob.glob(image_path + '/*.' + e)) for e in self.ext]
-        self.random_choices_gt = random.choices([i for i in range(len(self.data_list))], k=length)
-        self.random_choices_flare = []
-        self.random_choices_reflective_flare = []
+        self.random_choices_gt = self.generate_random_indices(length, len(self.data_list)) 
+        
 
         self.flare_dict = {}
-        self.flare_list = []
         self.flare_name_list = []
-
+        self.random_choices_flare = {}
+        
         self.reflective_flag = False
         self.reflective_dict = {}
-        self.reflective_list = []
         self.reflective_name_list = []
+        self.random_choices_reflective = {}
 
         self.light_flag = False
         self.light_dict = {}
-        self.light_list = []
         self.light_name_list = []
         self.length = length
 
@@ -100,9 +98,11 @@ class Flare_Image_Loader(data.Dataset):
         self.data_ratio = []
         print("Base Image Loaded with examples:", len(self.data_list))
 
-    def __getitem__(self, index):
+    def getI(self, index, is_real=False, with_reflective=False):
+        return self.__getitem__(index, is_real, with_reflective)
+    def __getitem__(self, index,is_real=False, with_reflective=False):
         # load base image
-        img_path = self.data_list[self.random_choices_gt[index%self.length]]
+        img_path = self.random_choices_gt[index]
         base_img = Image.open(img_path).convert('RGB')
 
         gamma = np.random.uniform(1.8, 2.2)
@@ -124,25 +124,32 @@ class Flare_Image_Loader(data.Dataset):
         base_img = gain * base_img
         base_img = torch.clamp(base_img, min=0, max=1)
 
+        flare_list = self.flare_dict['r'] if is_real else self.flare_dict['7k']
+        light_list = self.light_dict['r'] if is_real else self.light_dict['7k']
+        reflective_list = self.reflective_dict['7k'] if with_reflective else None
+        random_choices_flare = self.random_choices_flare['r'] if is_real else self.random_choices_flare['7k']
+        random_choices_reflective = self.random_choices_reflective['7k'] if with_reflective else None
         # load flare and light source image
+        light_img=None
         if self.light_flag:
-            assert len(self.flare_list) == len(
-                self.light_list), "Error, number of light source and flares dataset no match!"
+            assert len(flare_list) == len(
+                light_list), "Error, number of light source and flares dataset no match!"
 
-            flare_path = self.flare_list[self.random_choices_flare[index % len(self.flare_list)]]
-            light_path = self.light_list[self.random_choices_flare[index % len(self.flare_list)]]
+            flare_path = flare_list[random_choices_flare[index]]
+            light_path = light_list[random_choices_flare[index]]
             light_img = Image.open(light_path).convert('RGB')
             light_img = self.transform_r(light_img)
             light_img = to_tensor(light_img)
             light_img = adjust_gamma(light_img)
         else:
-            flare_path = self.flare_list[self.random_choices_flare[index % len(self.flare_list)]]
+            flare_path = flare_list[random_choices_flare[index]]
         flare_img = Image.open(flare_path).convert('RGB')
         flare_img = self.transform_r(flare_img)
-        if self.reflective_flag:
-            reflective_path_list = self.reflective_list[self.random_choices_reflective_flare[index % len(self.reflective_list)]]
+        reflective_img=None
+        if self.reflective_flag and with_reflective:
+            reflective_path_list = reflective_list[random_choices_reflective[index]]
             if len(reflective_path_list) != 0:
-                reflective_path = random.choice(reflective_path_list)
+                reflective_path = reflective_path_list[random_choices_reflective[index]]
                 reflective_img = Image.open(reflective_path).convert('RGB')
             else:
                 reflective_img = None
@@ -154,11 +161,10 @@ class Flare_Image_Loader(data.Dataset):
             reflective_img = self.transform_r(reflective_img)
             reflective_img = to_tensor(reflective_img)
             reflective_img = adjust_gamma(reflective_img)
-            # pad black to size 1440*1440
             flare_img = torch.clamp(flare_img + reflective_img, min=0, max=1)
 
         flare_img = remove_background(flare_img)
-
+        flare_merge=None
         if self.transform_flare is not None:
             if self.light_flag:
                 flare_merge = torch.cat((flare_img, light_img), dim=0)
@@ -187,6 +193,7 @@ class Flare_Image_Loader(data.Dataset):
             base_img = torch.clamp(base_img, min=0, max=1)
             flare_img = flare_img - light_img
             flare_img = torch.clamp(flare_img, min=0, max=1)
+            
         if self.mask_type == None:
             return {'gt': adjust_gamma_reverse(base_img), 'flare': adjust_gamma_reverse(flare_img),
                     'lq': adjust_gamma_reverse(merge_img), 'gamma': gamma}
@@ -231,15 +238,13 @@ class Flare_Image_Loader(data.Dataset):
         flare_list = sorted(flare_list)
         self.flare_name_list.append(flare_name)
         self.flare_dict[flare_name] = flare_list
-        self.flare_list.extend(flare_list)
+        self.random_choices_flare[flare_name] = self.generate_random_indices(self.length, len(flare_list))
         len_flare_list = len(self.flare_dict[flare_name])
         if len_flare_list == 0:
             print("ERROR: scattering flare images are not loaded properly")
         else:
             print("Scattering Flare Image:", flare_name, " is loaded successfully with examples", str(len_flare_list))
-        print("Now we have", len(self.flare_list), 'scattering flare images')
-        self.random_choices_flare=[i for i in range(len(self.flare_list))]
-        random.shuffle(self.random_choices_flare)
+        print("Now we have", len(flare_list), 'scattering flare images')
 
 
     def load_light_source(self, light_name, light_path):
@@ -249,7 +254,6 @@ class Flare_Image_Loader(data.Dataset):
         light_list = sorted(light_list)
         self.flare_name_list.append(light_name)
         self.light_dict[light_name] = light_list
-        self.light_list.extend(light_list)
         len_light_list = len(self.light_dict[light_name])
 
         if len_light_list == 0:
@@ -257,7 +261,7 @@ class Flare_Image_Loader(data.Dataset):
         else:
             self.light_flag = True
             print("Light Source Image:", light_name, " is loaded successfully with examples", str(len_light_list))
-        print("Now we have", len(self.light_list), 'light source images')
+        print("Now we have", len(light_list), 'light source images')
 
     def load_reflective_flare(self, reflective_name, reflective_path):
         if reflective_path is None:
@@ -268,7 +272,7 @@ class Flare_Image_Loader(data.Dataset):
             reflective_list = sorted(reflective_list)
         self.reflective_name_list.append(reflective_name)
         self.reflective_dict[reflective_name] = reflective_list
-        self.reflective_list.append(reflective_list)
+        self.random_choices_reflective[reflective_name]=self.generate_random_indices(self.length, len(reflective_list))
         len_reflective_list = len(self.reflective_dict[reflective_name])
         if len_reflective_list == 0:
             print("ERROR: reflective flare images are not loaded properly")
@@ -276,9 +280,23 @@ class Flare_Image_Loader(data.Dataset):
             self.reflective_flag = True
             print("Reflective Flare Image:", reflective_name, " is loaded successfully with examples",
                   str(len_reflective_list))
-        print("Now we have", len(self.reflective_list), 'refelctive flare images')
-        self.random_choices_reflective_flare=[i for i in range(len(self.reflective_list))]
-        random.shuffle(self.random_choices_reflective_flare)
+
+    def generate_random_indices(self, req, total): # 50 from 39
+        res=[]
+        while req > 0:
+            res.extend(random.sample(range(total), min(req, total)))
+            req -= total
+        return res
+            
+    def shuffle_indices(self):
+        random.shuffle(self.random_choices_gt)
+        for k,v in self.random_choices_flare.items():
+            random.shuffle(v)
+        for k,v in self.random_choices_reflective.items():
+            random.shuffle(v)
+
+        
+
 
 
 class Flare7kpp_Pair_Loader(Flare_Image_Loader):

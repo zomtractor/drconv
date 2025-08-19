@@ -14,7 +14,7 @@ import utils
 import numpy as np
 import random
 import math
-from DataPro import get_training_data, get_validation_data
+from data import get_training_data, get_validation_data
 from warmup_scheduler import GradualWarmupScheduler
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
@@ -51,7 +51,7 @@ def get_data_loaders(config, fabric):
     utils.mkdir(Train['VAL']['REAL_SAVE'])
     utils.mkdir(Train['VAL']['SYN_SAVE'])
 
-    train_dataset = get_training_data(Train['TRAIN_DIR'], {'patch_size': Train['TRAIN_PS']},OPT['LENGTH'])
+    train_dataset = get_training_data(Train['TRAIN_DIR'], Train['TRAIN_PS'],OPT['LENGTH'])
     train_loader = DataLoader(dataset=train_dataset, batch_size=OPT['BATCH'],
                               shuffle=True, num_workers=OPT['BATCH'], drop_last=True)
     real_val_dataset = get_validation_data(Train['VAL']['REAL_DIR'], {'patch_size': Train['VAL_PS']})
@@ -174,7 +174,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
         input_padded = torch.nn.functional.pad(input_,(w_pad_left, w_pad_right, h_pad_top, h_pad_bottom))
 
         with torch.no_grad():
-            restored = model_restored(input_padded)[2]
+            restored = model_restored(input_padded)
 
             # 移除padding
             if h_pad_top + h_pad_bottom > 0:
@@ -194,7 +194,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
             futures = []
             for batch in range(b):
                 img_bgr = cv2.cvtColor(restored_np[batch], cv2.COLOR_RGB2BGR)
-                save_path = os.path.join(input_path, data_val[2][batch] + '.png')
+                save_path = os.path.join(input_path, data_val[batch] + '.png')
                 futures.append(executor.submit(cv2.imwrite, save_path, img_bgr))
             # 等待所有保存操作完成
             for future in futures:
@@ -336,8 +336,6 @@ if __name__ == '__main__':
     OPT = config['TRAINOPTIM']
     model_dir = os.path.join(Train['SAVE_DIR'], config['MODEL']['MODE'], 'models')
     combined_loss1 = CombinedLoss(Train['LOSS']).cuda()
-    combined_loss2 = CombinedLoss(Train['LOSS']).cuda()
-    combined_loss3 = CombinedLoss(Train['LOSS']).cuda()
     loss_fn_alex = lpips.LPIPS(net='alex').cuda()
     for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         epoch_start_time = time.time()
@@ -358,16 +356,13 @@ if __name__ == '__main__':
             input_ = data[1].cuda()
             restored = model_restored(input_)
 
-            loss3 = combined_loss3(restored[0], F.interpolate(target, scale_factor=0.25, mode='bilinear', align_corners=False))
-            loss2 = combined_loss2(restored[1], F.interpolate(target, scale_factor=0.5, mode='bilinear', align_corners=False))
-            loss = combined_loss1(restored[2], target)
-            loss = loss + loss2 + loss3
+            loss = combined_loss1(restored, target)
             # Back propagation
             # loss.backward()
             fabric.backward(loss)
             optimizer.step()
             if i % 500 == 499:
-                print(f'echo {epoch}, iter {i + 1} finished.===================================================')
+                print(f'epoch {epoch}, iter {i + 1} finished.===================================================')
         ## Evaluation (Validation)
 
         if fabric.is_global_zero:
@@ -378,12 +373,10 @@ if __name__ == '__main__':
             print("------------------------------------------------------------------")
             print(
                 "Epoch: {}\tTime: {:.4f}\tLearningRate {:.8f}".format(epoch, time.time() - epoch_start_time, scheduler.get_lr()[0]))
-            combined_loss1.merge(combined_loss2)
-            combined_loss1.merge(combined_loss3)
+
             combined_loss1.print_cumulative_loss()
             combined_loss1.clear_cumulative_loss()
-            combined_loss2.clear_cumulative_loss()
-            combined_loss3.clear_cumulative_loss()
+
 
             print("------------------------------------------------------------------")
             # Save the last model

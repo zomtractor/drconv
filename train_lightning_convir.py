@@ -1,14 +1,12 @@
-import argparse
 import os
 import torch
 import cv2
 from skimage import img_as_ubyte
 from focal_frequency_loss import FocalFrequencyLoss as FFL
 import yaml
-import torch.distributed as dist
 
 import model
-from model import UBlock, CombinedLoss
+from model import UBlock, CombinedLoss,ConvIR
 from utils import network_parameters
 import torch.optim as optim
 import time
@@ -20,14 +18,14 @@ from data import get_training_data, get_validation_data
 from warmup_scheduler import GradualWarmupScheduler
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
-from utils.utils import ASLloss, ColorLoss, Blur, L1_Charbonnier_loss, img_pad, SSIM_loss, VGGLoss
 from utils.mask_utils import calculate_metrics
 import lpips
 import warnings
+from lightning.fabric import Fabric
+
 import torch.nn.functional as F
 
-
-def init_torch_config():
+def init_torch_config(config):
     warnings.filterwarnings("ignore")
     # torch.set_float32_matmul_precision('high')
     ## Set Seeds
@@ -38,9 +36,14 @@ def init_torch_config():
     torch.manual_seed(my_seed)
     torch.cuda.manual_seed_all(my_seed)
     torch.set_float32_matmul_precision('high')
-    #torch.set_anomaly_enabled(True)  # Enable anomaly detection for debugging
+    #torch.set_anomaly_enabled(True)
+    # fabric = Fabric(accelerator="cuda", devices=2, strategy="ddp_find_unused_parameters_true")
+    fabric = Fabric(accelerator="cuda",devices=config['TRAINOPTIM']['DEVICES'])
+    fabric.launch()
+    return fabric
 
-def get_data_loaders(config):
+
+def get_data_loaders(config, fabric):
     Train = config['TRAINING']
     OPT = config['TRAINOPTIM']
     ## DataLoaders
@@ -49,19 +52,20 @@ def get_data_loaders(config):
     utils.mkdir(Train['VAL']['SYN_SAVE'])
 
     train_dataset = get_training_data(Train['TRAIN_DIR'], Train['TRAIN_PS'],OPT['LENGTH'])
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = DataLoader(dataset=train_dataset, batch_size=OPT['BATCH'],
-                            sampler=train_sampler)
+                              shuffle=True, num_workers=OPT['BATCH'], drop_last=True)
     real_val_dataset = get_validation_data(Train['VAL']['REAL_DIR'], {'patch_size': Train['VAL_PS']})
-    # real_val_sampler = torch.utils.data.distributed.DistributedSampler(real_val_dataset)
-    real_val_loader = DataLoader(dataset=real_val_dataset, batch_size=1, shuffle=False)
+    real_val_loader = DataLoader(dataset=real_val_dataset, batch_size=1, shuffle=False, num_workers=2,
+                                 drop_last=True)
     syn_val_dataset = get_validation_data(Train['VAL']['SYN_DIR'], {'patch_size': Train['VAL_PS']})
-    # syn_val_sampler = torch.utils.data.distributed.DistributedSampler(syn_val_dataset)
-    syn_val_loader = DataLoader(dataset=syn_val_dataset, batch_size=1, shuffle=False)
+    syn_val_loader = DataLoader(dataset=syn_val_dataset, batch_size=1, shuffle=False, num_workers=2,
+                                drop_last=True)
+    train_loader = fabric.setup_dataloaders(train_loader)
+    # real_val_loader = fabric.setup_dataloaders(real_val_loader)
+    # syn_val_loader = fabric.setup_dataloaders(syn_val_loader)
     return train_loader, real_val_loader, syn_val_loader
 
-
-def load_model(config):
+def load_model(config, fabric):
     Train = config['TRAINING']
     OPT = config['TRAINOPTIM']
 
@@ -70,16 +74,17 @@ def load_model(config):
     mode = config['MODEL']['MODE']
     model_dir = os.path.join(Train['SAVE_DIR'], mode, 'models')
     utils.mkdir(model_dir)
+    # model_restored = UBlock(base_channels=OPT['CHANNELS'])
+    # model_restored = Uformer(embed_dim=10)
     model_class = getattr(model, config['MODEL']['ARCH'])
     model_args = config['MODEL']['ARGS']
-    model_restored = model_class(**model_args).cuda()
-    model_restored = torch.nn.parallel.DistributedDataParallel(model_restored, device_ids=[args.local_rank])
-
+    model_restored = model_class(**model_args)
     p_number = network_parameters(model_restored)
     ## Optimizer
     start_epoch = 1
     new_lr = float(OPT['LR_INITIAL'])
     optimizer = optim.Adam(model_restored.parameters(), lr=new_lr, betas=(0.9, 0.999), eps=1e-8)
+    model_restored, optimizer = fabric.setup(model_restored, optimizer)
     ## Scheduler (Strategy)
     warmup_epochs = 3
     scheduler_cosine = optim.lr_scheduler.CosineAnnealingLR(optimizer, OPT['EPOCHS'] - warmup_epochs,
@@ -145,11 +150,8 @@ def precompute_padding(h, w, k=16):
     w_pad_right = w_pad_left + (w_pad % 2)
     h_pad_bottom = h_pad_top + (h_pad % 2)
     return h_pad_top, h_pad_bottom, w_pad_left, w_pad_right
-
-
 def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
     Train = config['TRAINING']
-    OPT = config['TRAINOPTIM']
     val_dir = Train['VAL'][f'{name}_DIR']
     gt_path = os.path.join(val_dir, 'gt')
     input_path = Train['VAL'][f'{name}_SAVE']
@@ -159,11 +161,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
 
     model_restored.eval()
     print(f'==> Validation on {name} dataset=====================================================')
-    # psnr_val_rgb = []
-    # ssim_val_rgb = []
-    cumulative_psnr = 0
-    cumulative_ssim = 0
-    cumulative_lpips = 0
+
     for ii, data_val in enumerate(val_loader, 0):
         target = data_val[0].cuda()
         input_ = data_val[1].cuda()
@@ -176,7 +174,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
         input_padded = torch.nn.functional.pad(input_,(w_pad_left, w_pad_right, h_pad_top, h_pad_bottom))
 
         with torch.no_grad():
-            restored = model_restored(input_padded)
+            restored = model_restored(input_padded)[2]
 
             # 移除padding
             if h_pad_top + h_pad_bottom > 0:
@@ -196,14 +194,14 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
             futures = []
             for batch in range(b):
                 img_bgr = cv2.cvtColor(restored_np[batch], cv2.COLOR_RGB2BGR)
-                save_path = os.path.join(input_path, data_val[batch] + '.png')
+                save_path = os.path.join(input_path, data_val[2][batch] + '.png')
                 futures.append(executor.submit(cv2.imwrite, save_path, img_bgr))
             # 等待所有保存操作完成
             for future in futures:
                 future.result()
     psnr_val_rgb, ssim_val_rgb, lpips_val_rgb, score_val_rgb, Gpsnr_val_rgb, Spsnr_val_rgb = calculate_metrics(
         gt_path, input_path, mask_path, loss_fn)
-    assert not (math.fabs(psnr_val_rgb - 10.6835) < 1e-5), "nan or inf in PSNR calculation"
+    assert not (math.fabs(psnr_val_rgb-10.6835)<1e-5), "nan or inf in PSNR calculation"
     # Save the best PSNR model of validation
     if psnr_val_rgb > record_dict['best_psnr']:
         record_dict['best_psnr'] = psnr_val_rgb
@@ -285,14 +283,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--local_rank', default=-1, type=int,
-                        help='node rank for distributed training')
-    args = parser.parse_args()
-    print(args.local_rank)
-    dist.init_process_group(backend='nccl')
-    torch.cuda.set_device(args.local_rank)
-    init_torch_config()
+
 
     # Start training!
     print('==> Training start: ')
@@ -326,7 +317,8 @@ if __name__ == '__main__':
     }
 
     config, writer = load_config()
-    model_restored, checkpoint, optimizer, scheduler, start_epoch = load_model(config)
+    fabric = init_torch_config(config)
+    model_restored, checkpoint, optimizer, scheduler, start_epoch = load_model(config, fabric)
 
     if checkpoint is not None:
         best_real_dict = checkpoint['best_real_dict']
@@ -335,7 +327,7 @@ if __name__ == '__main__':
     else:
         print('No checkpoint found, starting from scratch.')
 
-    train_loader, real_val_loader, syn_val_loader = get_data_loaders(config)
+    train_loader, real_val_loader, syn_val_loader = get_data_loaders(config, fabric)
     total_start_time = time.time()
     # gt_path = "./dataset/Flare7Kpp/test_data/real/gt"
     # gt_path = "./dataset/Flare7Kpp/test_data/real/gt"
@@ -344,6 +336,8 @@ if __name__ == '__main__':
     OPT = config['TRAINOPTIM']
     model_dir = os.path.join(Train['SAVE_DIR'], config['MODEL']['MODE'], 'models')
     combined_loss1 = CombinedLoss(Train['LOSS']).cuda()
+    combined_loss2 = CombinedLoss(Train['LOSS']).cuda()
+    combined_loss3 = CombinedLoss(Train['LOSS']).cuda()
     loss_fn_alex = lpips.LPIPS(net='alex').cuda()
     for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         epoch_start_time = time.time()
@@ -368,42 +362,37 @@ if __name__ == '__main__':
             loss2 = combined_loss2(restored[1], F.interpolate(target, scale_factor=0.5, mode='bilinear', align_corners=False))
             loss = combined_loss1(restored[2], target)
             loss = loss + loss2 + loss3
-
-            loss.backward()
+            # Back propagation
+            # loss.backward()
+            fabric.backward(loss)
             optimizer.step()
             if i % 500 == 499:
                 print(f'epoch {epoch}, iter {i + 1} finished.===================================================')
         ## Evaluation (Validation)
 
-        if args.local_rank == 0:
+        if fabric.is_global_zero:
 
             if epoch % Train['VAL_AFTER_EVERY'] == 0:
-                validate(config, 'REAL', model_restored, real_val_loader, best_real_dict, loss_fn_alex)
-                validate(config, 'SYN', model_restored, syn_val_loader, best_syn_dict, loss_fn_alex)
+                validate(config,'REAL',model_restored,  real_val_loader, best_real_dict,loss_fn_alex)
+                validate(config,'SYN',model_restored,  syn_val_loader, best_syn_dict,loss_fn_alex)
             print("------------------------------------------------------------------")
             print(
-                "Epoch: {}\tTime: {:.4f}\tLearningRate {:.8f}".format(epoch, time.time() - epoch_start_time,
-                                                                      scheduler.get_lr()[0]))
-
+                "Epoch: {}\tTime: {:.4f}\tLearningRate {:.8f}".format(epoch, time.time() - epoch_start_time, scheduler.get_lr()[0]))
+            combined_loss1.merge(combined_loss2)
+            combined_loss1.merge(combined_loss3)
             combined_loss1.print_cumulative_loss()
             combined_loss1.clear_cumulative_loss()
+            combined_loss2.clear_cumulative_loss()
+            combined_loss3.clear_cumulative_loss()
 
+            print("------------------------------------------------------------------")
             # Save the last model
             torch.save({'epoch': epoch,
                         'state_dict': model_restored.state_dict(),
                         'optimizer': optimizer.state_dict(),
-
                         'best_real_dict': best_real_dict,
                         'best_syn_dict': best_syn_dict,
                         }, os.path.join(model_dir, "model_latest.pth"))
-
-            if epoch % Train['SAVE_AFTER_EVERY'] == 0:
-                torch.save({'epoch': epoch,
-                            'state_dict': model_restored.state_dict(),
-                            'optimizer': optimizer.state_dict(),
-                            'best_real_dict': best_real_dict,
-                            'best_syn_dict': best_syn_dict,
-                            }, os.path.join(model_dir, f"model_ep{epoch}.pth"))
 
             writer.add_scalar('train/loss', epoch_loss, epoch)
             writer.add_scalar('train/ssim_loss', epoch_ssim_loss, epoch)

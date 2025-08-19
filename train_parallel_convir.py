@@ -176,7 +176,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
         input_padded = torch.nn.functional.pad(input_,(w_pad_left, w_pad_right, h_pad_top, h_pad_bottom))
 
         with torch.no_grad():
-            restored = model_restored(input_padded)
+            restored = model_restored(input_padded)[2]
 
             # 移除padding
             if h_pad_top + h_pad_bottom > 0:
@@ -196,7 +196,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
             futures = []
             for batch in range(b):
                 img_bgr = cv2.cvtColor(restored_np[batch], cv2.COLOR_RGB2BGR)
-                save_path = os.path.join(input_path, data_val[batch] + '.png')
+                save_path = os.path.join(input_path, data_val[2][batch] + '.png')
                 futures.append(executor.submit(cv2.imwrite, save_path, img_bgr))
             # 等待所有保存操作完成
             for future in futures:
@@ -344,6 +344,8 @@ if __name__ == '__main__':
     OPT = config['TRAINOPTIM']
     model_dir = os.path.join(Train['SAVE_DIR'], config['MODEL']['MODE'], 'models')
     combined_loss1 = CombinedLoss(Train['LOSS']).cuda()
+    combined_loss2 = CombinedLoss(Train['LOSS']).cuda()
+    combined_loss3 = CombinedLoss(Train['LOSS']).cuda()
     loss_fn_alex = lpips.LPIPS(net='alex').cuda()
     for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         epoch_start_time = time.time()
@@ -384,9 +386,12 @@ if __name__ == '__main__':
             print(
                 "Epoch: {}\tTime: {:.4f}\tLearningRate {:.8f}".format(epoch, time.time() - epoch_start_time,
                                                                       scheduler.get_lr()[0]))
-
+            combined_loss1.merge(combined_loss2)
+            combined_loss1.merge(combined_loss3)
             combined_loss1.print_cumulative_loss()
             combined_loss1.clear_cumulative_loss()
+            combined_loss2.clear_cumulative_loss()
+            combined_loss3.clear_cumulative_loss()
 
             # Save the last model
             torch.save({'epoch': epoch,

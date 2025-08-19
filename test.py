@@ -6,7 +6,7 @@ from model import UBlock
 import torch
 import yaml
 import utils
-from DataPro.data import get_validation_data
+from data.data import get_validation_data
 from skimage import img_as_ubyte
 import cv2
 from torch.utils.data import DataLoader

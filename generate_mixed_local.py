@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import os
 
-from generator import Flare_Image_Loader
+from data import Flare_Image_Loader
 
 transform_base = {
     'img_size': 512

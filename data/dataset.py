@@ -5,13 +5,15 @@ from PIL import Image
 import torchvision.transforms.functional as TF
 import random
 
+from data import Flare_Image_Loader
+
 
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in ['jpeg', 'JPEG', 'jpg', 'png', 'JPG', 'PNG', 'gif'])
 
 
 class LocalDataLoaderTrain(Dataset):
-    def __init__(self, rgb_dir, img_options=None, length=8192):
+    def __init__(self, rgb_dir, patch_size, length=8192):
         super(LocalDataLoaderTrain, self).__init__()
 
         inp_files=os.listdir(os.path.join(rgb_dir, 'input', 'c0'))
@@ -19,12 +21,11 @@ class LocalDataLoaderTrain(Dataset):
 
         self.inp_filenames = [os.path.join(rgb_dir, 'input','c0', x) for x in inp_files if is_image_file(x)]
         self.tar_filenames = [os.path.join(rgb_dir, 'gt','c0', x) for x in tar_files if is_image_file(x)]
-        self.img_options = img_options
         # self.sizex = len(self.tar_filenames)  # get the size of target
         self.sizex = len(self.inp_filenames) if length is None else length
 
         self.random_indices = random.sample(range(len(self.inp_filenames)), k=self.sizex)
-        self.ps = self.img_options['patch_size']
+        self.ps = patch_size
 
     def __len__(self):
         # return self.sizex
@@ -89,7 +90,38 @@ class LocalDataLoaderTrain(Dataset):
         filename = os.path.splitext(os.path.split(tar_path)[-1])[0]
         return tar_img, inp_img, filename
 
+class RealtimeDataLoaderTrain(Dataset):
+    transform_base = {
+        'img_size': 512
+    }
 
+    transform_flare = {
+        "scale_min": 0.8,
+        "scale_max": 1.5,
+        "translate": 300,
+        "shear": 20
+    }
+    mode="Flare7Kpp"
+    def __init__(self, conf,patch_size,length=None):
+        self.transform_base['img_size']=patch_size
+        self.loader = Flare_Image_Loader(conf['BACKGROUND_DIR'],self.transform_base,self.transform_flare,length=length)
+        self.loader.load_scattering_flare('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Compound_Flare"))
+        self.loader.load_light_source('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Light_Source"))
+        self.loader.load_reflective_flare('7k', os.path.join(conf['FLARE7KPP_DIR'], "Flare7k", "Reflective_Flare"))
+        self.mode = conf['MODE']
+        if self.mode=='Flare7Kpp':
+            self.loader.load_scattering_flare('r', os.path.join(conf['FLARE7KPP_DIR'], "Flare-R", "Compound_Flare"))
+            self.loader.load_light_source('r',os.path.join(conf['FLARE7KPP_DIR'],"Flare-R","Light_Source"))
+        self.real_threshold = conf['REAL_PROPORTION']
+        self.reflective_threshold = conf['REFLECTIVE_PROPORTION']
+    def __len__(self):
+        # return self.sizex
+        return len(self.loader)
+
+    def __getitem__(self, index):
+        is_real = random.random() < self.real_threshold
+        with_reflective = random.random() < self.reflective_threshold
+        return self.loader.getI(index, is_real=is_real, with_reflective=with_reflective)
 
 class DataLoaderTrain(Dataset):
     def __init__(self, rgb_dir, img_options=None,length=None):
