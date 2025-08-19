@@ -51,7 +51,7 @@ def get_data_loaders(config, fabric):
     utils.mkdir(Train['VAL']['REAL_SAVE'])
     utils.mkdir(Train['VAL']['SYN_SAVE'])
 
-    train_dataset = get_training_data(Train['TRAIN_DIR'], Train['TRAIN_PS'],OPT['LENGTH'])
+    train_dataset = get_training_data(config['DATASET'], Train['TRAIN_PS'])
     train_loader = DataLoader(dataset=train_dataset, batch_size=OPT['BATCH'],
                               shuffle=True, num_workers=OPT['BATCH'], drop_last=True)
     real_val_dataset = get_validation_data(Train['VAL']['REAL_DIR'], {'patch_size': Train['VAL_PS']})

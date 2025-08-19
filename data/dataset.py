@@ -90,6 +90,7 @@ class LocalDataLoaderTrain(Dataset):
         filename = os.path.splitext(os.path.split(tar_path)[-1])[0]
         return tar_img, inp_img, filename
 
+
 class RealtimeDataLoaderTrain(Dataset):
     transform_base = {
         'img_size': 512
@@ -102,9 +103,10 @@ class RealtimeDataLoaderTrain(Dataset):
         "shear": 20
     }
     mode="Flare7Kpp"
-    def __init__(self, conf,patch_size,length=None):
+
+    def __init__(self, conf,patch_size):
         self.transform_base['img_size']=patch_size
-        self.loader = Flare_Image_Loader(conf['BACKGROUND_DIR'],self.transform_base,self.transform_flare,length=length)
+        self.loader = Flare_Image_Loader(conf['BACKGROUND_DIR'],self.transform_base,self.transform_flare,length=conf['LENGTH'])
         self.loader.load_scattering_flare('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Compound_Flare"))
         self.loader.load_light_source('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Light_Source"))
         self.loader.load_reflective_flare('7k', os.path.join(conf['FLARE7KPP_DIR'], "Flare7k", "Reflective_Flare"))

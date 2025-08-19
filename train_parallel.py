@@ -48,7 +48,7 @@ def get_data_loaders(config):
     utils.mkdir(Train['VAL']['REAL_SAVE'])
     utils.mkdir(Train['VAL']['SYN_SAVE'])
 
-    train_dataset = get_training_data(Train['TRAIN_DIR'], Train['TRAIN_PS'],OPT['LENGTH'])
+    train_dataset = get_training_data(config['DATASET'], Train['TRAIN_PS'])
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = DataLoader(dataset=train_dataset, batch_size=OPT['BATCH'],
                             sampler=train_sampler)

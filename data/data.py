@@ -3,13 +3,13 @@ import os
 from data import LocalDataLoaderTrain, DataLoaderVal, DataLoaderTest, DataLoaderTrain,RealtimeDataLoaderTrain
 
 
-def get_training_data(conf,ps=256, length=None):
+def get_training_data(conf,ps=256):
 
     if(conf['MODE']=='local'):
         assert os.path.exists(conf['LOCAL_DIR'])
-        return LocalDataLoaderTrain(conf['LOCAL_DIR'], patch_size=ps, length=length)
+        return LocalDataLoaderTrain(conf['LOCAL_DIR'], patch_size=ps, length=conf['LENGTH'])
     else:
-        return RealtimeDataLoaderTrain(conf,ps,length)
+        return RealtimeDataLoaderTrain(conf,ps)
     # return DataLoaderTrain(rgb_dir, img_options,length=10000)
 
 
