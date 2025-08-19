@@ -19,13 +19,12 @@ TRAINOPTIM:
   # BETA1: 0.9
 DATASET:
   LENGTH: 8192 # origin: 8192
-  MODE: 'local'  # 'local','Flare7K','Flare7Kpp'
+  MODE: 'Flare7Kpp'  # 'local','Flare7K','Flare7Kpp'
   LOCAL_DIR: './dataset/flare7k_local' # path to local dataset
   BACKGROUND_DIR: './dataset/Flickr24K' # path to background image
   FLARE7KPP_DIR: './dataset/Flare7Kpp' # path to flare7kpp dataset
   REAL_PROPORTION: 0.5 # proportion of real images in the dataset
-  REFLECTIVE__PROPORTION: 1.0 # proportion of reflective images in the dataset
-
+  REFLECTIVE_PROPORTION: 1.0 # proportion of reflective images in the dataset
 TRAINING:
   VAL_AFTER_EVERY: 1
   RESUME: False

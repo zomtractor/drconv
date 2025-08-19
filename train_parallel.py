@@ -364,10 +364,7 @@ if __name__ == '__main__':
             input_ = data[1].cuda()
             restored = model_restored(input_)
 
-            loss3 = combined_loss3(restored[0], F.interpolate(target, scale_factor=0.25, mode='bilinear', align_corners=False))
-            loss2 = combined_loss2(restored[1], F.interpolate(target, scale_factor=0.5, mode='bilinear', align_corners=False))
             loss = combined_loss1(restored[2], target)
-            loss = loss + loss2 + loss3
 
             loss.backward()
             optimizer.step()

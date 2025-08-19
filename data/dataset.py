@@ -4,6 +4,7 @@ import torch
 from PIL import Image
 import torchvision.transforms.functional as TF
 import random
+import torchvision.transforms as transforms
 
 from data import Flare_Image_Loader
 
@@ -105,7 +106,7 @@ class RealtimeDataLoaderTrain(Dataset):
     mode="Flare7Kpp"
 
     def __init__(self, conf,patch_size):
-        self.transform_base['img_size']=patch_size
+        self.output_size=patch_size
         self.loader = Flare_Image_Loader(conf['BACKGROUND_DIR'],self.transform_base,self.transform_flare,length=conf['LENGTH'])
         self.loader.load_scattering_flare('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Compound_Flare"))
         self.loader.load_light_source('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Light_Source"))
@@ -116,6 +117,7 @@ class RealtimeDataLoaderTrain(Dataset):
             self.loader.load_light_source('r',os.path.join(conf['FLARE7KPP_DIR'],"Flare-R","Light_Source"))
         self.real_threshold = conf['REAL_PROPORTION']
         self.reflective_threshold = conf['REFLECTIVE_PROPORTION']
+        self.resize = transforms.Resize(patch_size, interpolation=transforms.InterpolationMode.NEAREST)
     def __len__(self):
         # return self.sizex
         return len(self.loader)
@@ -123,7 +125,12 @@ class RealtimeDataLoaderTrain(Dataset):
     def __getitem__(self, index):
         is_real = random.random() < self.real_threshold
         with_reflective = random.random() < self.reflective_threshold
-        return self.loader.getI(index, is_real=is_real, with_reflective=with_reflective)
+        result_dict = self.loader.getI(index, is_real=is_real, with_reflective=with_reflective)
+        gt,lq,flare = result_dict['gt'],result_dict['lq'],result_dict['flare']
+        gt=self.resize(gt)
+        lq=self.resize(lq)
+        flare=self.resize(flare)
+        return gt,lq,flare
 
 class DataLoaderTrain(Dataset):
     def __init__(self, rgb_dir, img_options=None,length=None):

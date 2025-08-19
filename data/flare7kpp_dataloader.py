@@ -49,7 +49,7 @@ def glod_from_folder(folder_list, index_list):
     for i, folder_name in enumerate(folder_list):
         data_list = []
         [data_list.extend(glob.glob(folder_name + '/*.' + e)) for e in ext]
-        data_list.sort()
+        # data_list.sort()
         index_dict[index_list[i]] = data_list
     return index_dict
 
@@ -59,13 +59,13 @@ class Flare_Image_Loader(data.Dataset):
         self.ext = ['png', 'jpeg', 'jpg', 'bmp', 'tif']
         self.data_list = []
         [self.data_list.extend(glob.glob(image_path + '/*.' + e)) for e in self.ext]
-        self.random_choices_gt = self.generate_random_indices(length, len(self.data_list)) 
-        
+        self.random_choices_gt = self.generate_random_indices(length, len(self.data_list))
+
 
         self.flare_dict = {}
         self.flare_name_list = []
         self.random_choices_flare = {}
-        
+
         self.reflective_flag = False
         self.reflective_dict = {}
         self.reflective_name_list = []
@@ -80,6 +80,8 @@ class Flare_Image_Loader(data.Dataset):
 
         self.mask_type = mask_type  # It is a str which may be None,"luminance" or "color"
         self.img_size = transform_base['img_size']
+
+        self.transform_output = transforms.Resize
 
         self.transform_base = transforms.Compose(
             [transforms.RandomCrop((self.img_size, self.img_size), pad_if_needed=True, padding_mode='reflect'),
@@ -102,7 +104,8 @@ class Flare_Image_Loader(data.Dataset):
         return self.__getitem__(index, is_real, with_reflective)
     def __getitem__(self, index,is_real=False, with_reflective=False):
         # load base image
-        img_path = self.random_choices_gt[index]
+        img_path = self.data_list[index]
+        # img_path = self.data_list[self.random_choices_gt[index]]
         base_img = Image.open(img_path).convert('RGB')
 
         gamma = np.random.uniform(1.8, 2.2)
@@ -147,12 +150,8 @@ class Flare_Image_Loader(data.Dataset):
         flare_img = self.transform_r(flare_img)
         reflective_img=None
         if self.reflective_flag and with_reflective:
-            reflective_path_list = reflective_list[random_choices_reflective[index]]
-            if len(reflective_path_list) != 0:
-                reflective_path = reflective_path_list[random_choices_reflective[index]]
-                reflective_img = Image.open(reflective_path).convert('RGB')
-            else:
-                reflective_img = None
+            reflective_path = reflective_list[random_choices_reflective[index]]
+            reflective_img = Image.open(reflective_path).convert('RGB')
 
         flare_img = to_tensor(flare_img)
         flare_img = adjust_gamma(flare_img)
@@ -193,7 +192,7 @@ class Flare_Image_Loader(data.Dataset):
             base_img = torch.clamp(base_img, min=0, max=1)
             flare_img = flare_img - light_img
             flare_img = torch.clamp(flare_img, min=0, max=1)
-            
+
         if self.mask_type == None:
             return {'gt': adjust_gamma_reverse(base_img), 'flare': adjust_gamma_reverse(flare_img),
                     'lq': adjust_gamma_reverse(merge_img), 'gamma': gamma}
@@ -287,7 +286,7 @@ class Flare_Image_Loader(data.Dataset):
             res.extend(random.sample(range(total), min(req, total)))
             req -= total
         return res
-            
+
     def shuffle_indices(self):
         random.shuffle(self.random_choices_gt)
         for k,v in self.random_choices_flare.items():
@@ -295,7 +294,7 @@ class Flare_Image_Loader(data.Dataset):
         for k,v in self.random_choices_reflective.items():
             random.shuffle(v)
 
-        
+
 
 
 
