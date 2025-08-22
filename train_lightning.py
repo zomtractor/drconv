@@ -194,7 +194,7 @@ def validate(config, name, model_restored, val_loader, record_dict, loss_fn):
             futures = []
             for batch in range(b):
                 img_bgr = cv2.cvtColor(restored_np[batch], cv2.COLOR_RGB2BGR)
-                save_path = os.path.join(input_path, data_val[batch] + '.png')
+                save_path = os.path.join(input_path, data_val[2][batch] + '.png')
                 futures.append(executor.submit(cv2.imwrite, save_path, img_bgr))
             # 等待所有保存操作完成
             for future in futures:

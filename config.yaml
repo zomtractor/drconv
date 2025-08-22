@@ -11,7 +11,7 @@ MODEL:
   ARCH: 'UBlock'
   ARGS:
     in_channels: 3
-    base_channels: 32
+    base_channels: 20
 
 # Optimization arguments.
 TRAINOPTIM:
@@ -23,7 +23,7 @@ TRAINOPTIM:
   LR_MIN: 1e-6 # origin: 1e-6
   # BETA1: 0.9
 DATASET:
-  LENGTH: 8192 # origin: 8192
+  LENGTH: 32 # origin: 8192
   MODE: 'Flare7Kpp'  # 'local','Flare7K','Flare7Kpp'
   LOCAL_DIR: './dataset/flare7k_local' # path to local dataset
   BACKGROUND_DIR: './dataset/Flickr24K' # path to background image
