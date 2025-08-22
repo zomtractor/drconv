@@ -59,8 +59,8 @@ class Flare_Image_Loader(data.Dataset):
         self.ext = ['png', 'jpeg', 'jpg', 'bmp', 'tif']
         self.data_list = []
         [self.data_list.extend(glob.glob(image_path + '/*.' + e)) for e in self.ext]
-        self.random_choices_gt = self.generate_random_indices(length, len(self.data_list)) 
-        
+        self.random_choices_gt = self.generate_random_indices(length, len(self.data_list))
+
 
         self.flare_dict = {}
         self.flare_name_list = []
@@ -280,12 +280,21 @@ class Flare_Image_Loader(data.Dataset):
             print("Reflective Flare Image:", reflective_name, " is loaded successfully with examples",
                   str(len_reflective_list))
 
-    def generate_random_indices(self, req, total): # 50 from 39
-        res=[]
-        while req > 0:
-            res.extend(random.sample(range(total), min(req, total)))
-            req -= total
-        return res
+    def generate_random_indices(self, req, total):
+        if req <= 0 or total <= 0:
+            return []
+        if req <= total:
+            return random.sample(range(total), req)
+        else:
+            result = []
+            remaining = req
+
+            while remaining > 0:
+                sample_size = min(remaining, total)
+                result.extend(random.sample(range(total), sample_size))
+                remaining -= sample_size
+
+            return result
 
     def shuffle_indices(self):
         random.shuffle(self.random_choices_gt)
@@ -294,7 +303,7 @@ class Flare_Image_Loader(data.Dataset):
         for k,v in self.random_choices_reflective.items():
             random.shuffle(v)
 
-        
+
 
 
 
