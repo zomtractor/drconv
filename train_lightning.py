@@ -6,7 +6,7 @@ from focal_frequency_loss import FocalFrequencyLoss as FFL
 import yaml
 
 import model
-from model import UBlock, CombinedLoss,ConvIR
+from model import CombinedLoss
 from utils import network_parameters
 import torch.optim as optim
 import time
