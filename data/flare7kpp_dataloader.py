@@ -59,8 +59,8 @@ class Flare_Image_Loader(data.Dataset):
         self.ext = ['png', 'jpeg', 'jpg', 'bmp', 'tif']
         self.data_list = []
         [self.data_list.extend(glob.glob(image_path + '/*.' + e)) for e in self.ext]
-        self.random_choices_gt = self.generate_random_indices(length, len(self.data_list))
-
+        self.random_choices_gt = self.generate_random_indices(length, len(self.data_list)) 
+        
 
         self.flare_dict = {}
         self.flare_name_list = []
@@ -294,7 +294,7 @@ class Flare_Image_Loader(data.Dataset):
         for k,v in self.random_choices_reflective.items():
             random.shuffle(v)
 
-
+        
 
 
 

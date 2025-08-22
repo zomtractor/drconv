@@ -45,8 +45,8 @@ TRAINING:
       loss_weight: 1.5
     SSIMLoss:
       loss_weight: 1.0
-    ColorConsistencyLoss:
-      loss_weight: !!float 1e-4
+#    ColorConsistencyLoss:
+#      loss_weight: !!float 1e-4
     LPIPSLoss:
       net: 'vgg'
       loss_weight: 0.02

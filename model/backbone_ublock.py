@@ -3,22 +3,40 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.fft
 
-from model import MDFusion
+from model import MDFusion, LayerNorm
+
+class FeedForward(nn.Module):
+    def __init__(self, dim, ffn_expansion_factor, bias):
+        super(FeedForward, self).__init__()
+        hidden_features = int(dim*ffn_expansion_factor)
+        self.project_in = nn.Conv2d(dim, hidden_features*2, kernel_size=1, bias=bias)
+        self.dwconv = nn.Conv2d(hidden_features*2, hidden_features*2, kernel_size=3, stride=1, padding=1, groups=hidden_features*2, bias=bias)
+        self.project_out = nn.Conv2d(hidden_features, dim, kernel_size=1, bias=bias)
+    def forward(self, x):
+        x = self.project_in(x)
+        x1, x2 = self.dwconv(x).chunk(2, dim=1)
+        x = F.gelu(x2)*x1 + F.gelu(x1)*x2
+        x = self.project_out(x)
+        return x
 
 
 class FeatureBlock(nn.Module):
     def __init__(self, channels):
         super(FeatureBlock, self).__init__()
-        self.fusion1 = MDFusion(channels, channels)
-        self.fusion2 = MDFusion(channels, channels)
-        self.bn = nn.BatchNorm2d(channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.ln1 = LayerNorm(channels)
+        self.block = MDFusion(channels,channels)
+        self.ln2 = LayerNorm(channels)
+        self.ff = FeedForward(channels,2.66,bias=True)
+
     def forward(self, x):
-        res = self.fusion1(x)
-        res = self.fusion2(res)
-        res = self.bn(res)
-        res = self.relu(res)
-        return x + res
+        res = self.ln1(x)
+        res = self.block(res)
+        res = x + res
+        out = self.ln2(res)
+        out = self.ff(out)
+
+        return res+out
+
 
 
 class DownSample(nn.Module):
