@@ -8,9 +8,9 @@ import torch.nn.functional as F
 class MDFusion(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.c3 = DrConv(in_channels, out_channels, kernel_size=3)
-        self.c5 = DrConv(in_channels, out_channels, kernel_size=5)
-        self.c7 = DrConv(in_channels, out_channels, kernel_size=7)
+        self.c3 = DrConv(in_channels, out_channels, kernel_length=3)
+        self.c5 = DrConv(in_channels, out_channels, kernel_length=5)
+        self.c7 = DrConv(in_channels, out_channels, kernel_length=7)
         self.activation = nn.GELU()
         self.ln1 = LayerNorm(in_channels)
         self.ln2 = LayerNorm(4*in_channels)

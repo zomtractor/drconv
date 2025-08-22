@@ -1,12 +1,17 @@
 #Configuration
 VERBOSE: False
 MODEL:
+#  MODE: 'DeFlare'
+#  ARCH: 'ConvIR'
+#  ARGS:
+#    version: 'base'
+#    data: 'ITS'
+#    base_channel: 32
   MODE: 'DeFlare'
-  ARCH: 'ConvIR'
+  ARCH: 'UBlock'
   ARGS:
-    version: 'base'
-    data: 'ITS'
-    base_channel: 32
+    in_channels: 3
+    base_channels: 32
 
 # Optimization arguments.
 TRAINOPTIM:
