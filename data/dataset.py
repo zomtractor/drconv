@@ -108,9 +108,9 @@ class RealtimeDataLoaderTrain(Dataset):
     def __init__(self, conf,patch_size):
         self.output_size=patch_size
         self.loader = Flare_Image_Loader(conf['BACKGROUND_DIR'],self.transform_base,self.transform_flare,length=conf['LENGTH'])
-        self.loader.load_scattering_flare('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Compound_Flare"))
-        self.loader.load_light_source('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7k","Scattering_Flare","Light_Source"))
-        self.loader.load_reflective_flare('7k', os.path.join(conf['FLARE7KPP_DIR'], "Flare7k", "Reflective_Flare"))
+        self.loader.load_scattering_flare('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7K","Scattering_Flare","Compound_Flare"))
+        self.loader.load_light_source('7k',os.path.join(conf['FLARE7KPP_DIR'],"Flare7K","Scattering_Flare","Light_Source"))
+        self.loader.load_reflective_flare('7k', os.path.join(conf['FLARE7KPP_DIR'], "Flare7K", "Reflective_Flare"))
         self.mode = conf['MODE']
         if self.mode=='Flare7Kpp':
             self.loader.load_scattering_flare('r', os.path.join(conf['FLARE7KPP_DIR'], "Flare-R", "Compound_Flare"))
