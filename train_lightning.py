@@ -1,4 +1,6 @@
 import os
+import datetime
+
 import torch
 import cv2
 from skimage import img_as_ubyte
@@ -125,7 +127,11 @@ def load_model(config, fabric):
     print('------------------------------------------------------------------')
     return model_restored, checkpoint, optimizer, scheduler, start_epoch
 
-
+def assertLimited():
+    start_time = datetime.time(7, 45)  # 7:40
+    end_time = datetime.time(8, 15)    # 8:10
+    assert not (start_time <= datetime.datetime.now().time() <= end_time), "当前时间位于禁止时间段 7:40~8:10 内"
+    print("assert passed")
 def load_config():
     ## Load yaml configuration file
     opt = None
@@ -338,6 +344,8 @@ if __name__ == '__main__':
     combined_loss1 = CombinedLoss(Train['LOSS']).cuda()
     loss_fn_alex = lpips.LPIPS(net='alex').cuda()
     for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
+        if 'LIMITED' in config and config['LIMITED']:
+            assertLimited()
         epoch_start_time = time.time()
         epoch_loss = 0
         epoch_ssim_loss = 0
