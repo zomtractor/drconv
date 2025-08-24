@@ -128,7 +128,7 @@ def load_model(config, fabric):
     return model_restored, checkpoint, optimizer, scheduler, start_epoch
 
 def assertLimited():
-    start_time = datetime.time(7, 45)  # 7:40
+    start_time = datetime.time(7, 00)  # 7:40
     end_time = datetime.time(8, 15)    # 8:10
     assert not (start_time <= datetime.datetime.now().time() <= end_time), "当前时间位于禁止时间段 7:40~8:10 内"
     print("assert passed")
