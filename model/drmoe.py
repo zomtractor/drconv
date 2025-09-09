@@ -26,7 +26,6 @@ class ExpertGate(nn.Module):
         self.maxpool = nn.AdaptiveMaxPool2d(1)
         self.w1 = nn.Linear(in_channels, num_experts)
         self.w2 = nn.Linear(in_channels, num_experts)
-        self.noise = nn.Linear(in_channels, num_experts)
 
     def forward(self, x):
         b, c, _, _ = x.shape
@@ -37,7 +36,7 @@ class ExpertGate(nn.Module):
 
         # 计算门控权重
         n1 = self.w1(f)
-        n2 = torch.randn_like(n1) * F.softplus(self.noise(f))  # 使用带噪声的门控
+        n2 = torch.randn_like(n1) * F.softplus(self.w2(f))  # 使用带噪声的门控
         n = n1 + n2
 
         # 选择topk专家
