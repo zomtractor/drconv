@@ -87,9 +87,10 @@ class DrMoE(nn.Module):
                 output[i] += sample_gate_weights[j] * expert_output.squeeze(0)
 
         # 计算辅助损失（负载均衡损失）
-        aux_loss = self._load_balancing_loss(gate_weights, expert_indices)
+        # aux_loss = self._load_balancing_loss(gate_weights, expert_indices)
 
-        return output, aux_loss
+        # return output, aux_loss
+        return output
 
     def _load_balancing_loss(self, gate_weights, expert_indices):
         """计算负载均衡损失，防止门控网络总是选择相同的专家"""
