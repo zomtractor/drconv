@@ -23,7 +23,7 @@ class FAB(nn.Module):  # Feature Attention Block
         r2 = self.abtb(res)
         res = res+r1+r2
         out = self.ln2(res)
-        out= self.ff(out)
+        out,_= self.ff(out)
         return res+out
 
 
