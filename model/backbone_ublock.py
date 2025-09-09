@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.fft
 
-from model import MDFusion, LayerNorm
+from model import MDFusion, LayerNorm, FAB, MFFE, CBAM
+
 
 class FeedForward(nn.Module):
     def __init__(self, dim, ffn_expansion_factor, bias):
@@ -23,19 +24,17 @@ class FeedForward(nn.Module):
 class FeatureBlock(nn.Module):
     def __init__(self, channels):
         super(FeatureBlock, self).__init__()
-        self.ln1 = LayerNorm(channels)
-        self.block = MDFusion(channels,channels)
-        self.ln2 = LayerNorm(channels)
-        self.ff = FeedForward(channels,2.66,bias=True)
+        self.fab1 = FAB(channels)
+        self.fab2 = FAB(channels)
+        self.cbam = CBAM(channels)
+        self.mffe = MFFE(channels)
 
     def forward(self, x):
-        res = self.ln1(x)
-        res = self.block(res)
-        res = x + res
-        out = self.ln2(res)
-        out = self.ff(out)
-
-        return res+out
+        res = self.fab1(x)
+        res = self.fab2(res)
+        res = self.cbam(res)
+        res = self.mffe(res)
+        return x + res
 
 
 
