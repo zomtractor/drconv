@@ -94,7 +94,7 @@ class CombinedLoss(nn.Module):
         total_loss = 0.0
         for name, loss_fn in self.losses.items():
             loss_val = loss_fn(input, target)
-            total_loss += self.weights[name] * loss_val
+            total_loss += self.weights[name] * loss_val.item()
             self.cumulative_loss[name] += loss_val.item()
         self.cumulative_loss['total'] += total_loss
         return total_loss

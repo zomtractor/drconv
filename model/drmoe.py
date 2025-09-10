@@ -110,8 +110,22 @@ class DrMoE(nn.Module):
         aux_loss = torch.sum(expert_usage * expert_weights) * num_experts
         return aux_loss * self.aux_loss_coef
 if __name__ == '__main__':
-    # 示例使用
-    x = torch.randn(4, 20, 256, 256)  # batch_size=4, channels=64, height=32, width=32
-    mdfusion = DrMoE(20, 2)
-    out,loss = mdfusion(x)
-    print("MDFusion output shape:", out.shape)
+    from torch import nn
+    from torch.nn import functional as F
+    import torch
+
+    net=DrMoE(in_channels=3,num_expert_group=2).cuda()
+    lq = torch.randn(1, 3, 256, 256).cuda()
+    gt = torch.randn(1, 3, 256, 256).cuda()
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(net.parameters())
+    for i in range(1024):
+        pred = net(lq)
+        optimizer.zero_grad()
+        loss = criterion(pred, gt)
+        loss.backward()
+        print(f'{i}: {loss.item()}')
+        optimizer.step()
+        for name,param in net.named_parameters():
+            if param.requires_grad and param.grad is None:
+                print(name)
