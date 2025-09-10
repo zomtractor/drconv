@@ -94,9 +94,9 @@ class CombinedLoss(nn.Module):
         total_loss = 0.0
         for name, loss_fn in self.losses.items():
             loss_val = loss_fn(input, target)
-            total_loss += self.weights[name] * loss_val.item()
+            total_loss += self.weights[name] * loss_val
             self.cumulative_loss[name] += loss_val.item()
-        self.cumulative_loss['total'] += total_loss
+        self.cumulative_loss['total'] += total_loss.item()
         return total_loss
 
     def clear_cumulative_loss(self):
@@ -123,12 +123,23 @@ if __name__ == '__main__':
     with open('../config.yaml', 'r') as config:
         opt = yaml.safe_load(config)
     loss_dict = opt['TRAINING']['LOSS']
-    combined_loss = CombinedLoss(loss_dict)
+    criterion = CombinedLoss(loss_dict)
     gt = torch.randn(1, 3, 256, 256)
-    noise = torch.randn(1, 3, 256, 256)*0.001
-    prediction = gt + noise
-    total_loss, loss_dict = combined_loss(prediction, gt)
-    print(f'Total Loss: {total_loss.item()}')
-    print('Loss Details:', loss_dict)
+    input = torch.randn(1, 3, 256, 256)
+
+    net = nn.Sequential(
+        nn.Conv2d(3,5,3,1,1),
+        nn.BatchNorm2d(5),
+        nn.ReLU(inplace=True),
+        nn.Conv2d(5,3,3,1,1)
+    )
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
+    for i in range(1000):
+        prediction = net(input)
+        loss = criterion(prediction, gt)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        criterion.print_cumulative_loss()
 
 
