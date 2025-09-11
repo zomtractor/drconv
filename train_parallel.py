@@ -93,6 +93,7 @@ def load_model(config):
     if Train['RESUME']:
         path_chk_rest = utils.get_last_path(model_dir, '_latest.pth')
         checkpoint = utils.load_checkpoint(model_restored, path_chk_rest)
+        del path_chk_rest
         if (checkpoint is not None):
             # start_epoch = utils.load_start_epoch(path_chk_rest) + 1
             start_epoch = checkpoint['epoch'] + 1
@@ -332,6 +333,7 @@ if __name__ == '__main__':
         best_real_dict = checkpoint['best_real_dict']
         best_syn_dict = checkpoint['best_syn_dict']
         print("load indices from checkpoint succeed.")
+        del checkpoint
     else:
         print('No checkpoint found, starting from scratch.')
 

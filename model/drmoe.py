@@ -77,9 +77,6 @@ class DrMoE(nn.Module):
             sample_expert_indices = expert_indices[i]  # [topk]
             sample_gate_weights = gate_weights[i][sample_expert_indices]  # [topk]
 
-            # 归一化权重
-            sample_gate_weights = sample_gate_weights / sample_gate_weights.sum()
-
             # 计算每个选择的专家的输出并加权组合
             for j, expert_idx in enumerate(sample_expert_indices):
                 expert_output = self.experts[expert_idx](x[i].unsqueeze(0))
